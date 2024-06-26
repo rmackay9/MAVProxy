@@ -14,15 +14,44 @@ import time
 import re
 from datetime import datetime
 from threading import Thread, Lock
+from typing_extensions import override
 import json
 import math
 from MAVProxy.modules.lib import param_help
 
 try:
-    from openai import OpenAI
+    from openai import OpenAI, AssistantEventHandler
 except Exception:
     print("chat: failed to import openai. See https://ardupilot.org/mavproxy/docs/modules/chat.html")
     exit()
+
+
+class EventHandler(AssistantEventHandler):
+    def __init__(self, chat_openai):
+        # record reference to chat_openai object
+        self.chat_openai = chat_openai
+
+        # initialise parent class (assistant event handler)
+        super().__init__()
+
+    @override
+    def on_event(self, event):
+        # record run id so that it can be cancelled if required
+        self.chat_openai.latest_run_id = event.data.id
+
+        # display the event in the status field
+        event_string_array = event.event.split(".")
+        event_string = event_string_array[-1]
+        self.chat_openai.send_status(event_string)
+
+        # requires_action events handled by function calls
+        if event.event == 'thread.run.requires_action':
+            self.chat_openai.handle_function_call(event)
+
+        # display reply text in the reply window
+        if (event.event == "thread.message.delta"):
+            stream_text = event.data.delta.content[0].text.value
+            self.chat_openai.send_reply(stream_text)
 
 
 class chat_openai():
@@ -49,7 +78,7 @@ class chat_openai():
         self.client = None
         self.assistant = None
         self.assistant_thread = None
-        self.latest_run = None
+        self.latest_run_id = None
 
     # check connection to OpenAI assistant and connect if necessary
     # returns True if connection is good, False if not
@@ -103,22 +132,15 @@ class chat_openai():
 
     # cancel the active run
     def cancel_run(self):
-        # check the active thread and run
-        if (self.assistant_thread and self.latest_run is not None):
-            run_status = self.latest_run.status
-            if (run_status != "completed" and run_status != "cancelled" and
-                    run_status != "cancelling"):
-
-                # cancel the active run
-                self.client.beta.threads.runs.cancel(
-                    thread_id=self.assistant_thread.id,
-                    run_id=self.run.id
-                )
-            else:
-                if (self.latest_run.status == "completed"):
-                    print("Chat is completed, cannot be cancelled")
-                elif (self.latest_run.status == "cancelled"):
-                    print("Chat is cancelled")
+        # check the active thread and run id
+        if self.assistant_thread and self.latest_run_id is not None:
+            # cancel the run
+            self.client.beta.threads.runs.cancel(
+                thread_id=self.assistant_thread.id,
+                run_id=self.latest_run_id
+            )
+        else:
+            self.send_status("No active run to cancel")
 
     # send text to assistant
     def send_to_assistant(self, text):
@@ -127,7 +149,8 @@ class chat_openai():
 
             # check connection
             if not self.check_connection():
-                return "chat: failed to connect to OpenAI"
+                self.send_reply("chat: failed to connect to OpenAI")
+                return
 
             # create a new message
             input_message = self.client.beta.threads.messages.create(
@@ -136,39 +159,44 @@ class chat_openai():
                 content=text
             )
             if input_message is None:
-                return "chat: failed to create input message"
+                self.send_reply("chat: failed to create input message")
+                return
+
+            # create event handler
+            event_handler = EventHandler(self)
 
             # create a run
-            self.run = self.client.beta.threads.runs.create(
+            with self.client.beta.threads.runs.stream(
                 thread_id=self.assistant_thread.id,
                 assistant_id=self.assistant.id,
-                stream=True
-            )
-            for event in self.run:
+                event_handler=event_handler
+            ) as stream:
+                stream.until_done()
 
-                if (event.event == "thread.run.requires_action"):
-                    func_call = self.handle_function_call(event)
-                    if (func_call is True):
-                        continue
-
-                if (event.event == "thread.run.completed"):
-                    self.send_status("completed")
-
-                if (event.event == "thread.message.delta"):
-                    stream_text = event.data.delta.content[0].text.value
-                    self.send_reply_stream(stream_text)
+            # retrieve the run and print its final status
+            if self.assistant_thread and self.latest_run_id:
+                run = self.client.beta.threads.runs.retrieve(
+                    thread_id=self.assistant_thread.id,
+                    run_id=self.latest_run_id
+                )
+                if run is not None:
+                    self.send_status(run.status)
+            else:
+                # print done
+                self.send_status("done")
 
     # handle function call request from assistant
-    # on success this returns the text response that should be sent to the assistant, returns None on failure
     def handle_function_call(self, event):
 
         # sanity check required action (this should never happen)
         if (event.event != "thread.run.requires_action"):
             print("chat::handle_function_call: assistant function call empty")
+            return
 
         # check format
         if event.data.required_action.submit_tool_outputs is None:
             print("chat::handle_function_call: submit tools outputs empty")
+            return
 
         tool_outputs = []
         for tool_call in event.data.required_action.submit_tool_outputs.tool_calls:
@@ -226,25 +254,26 @@ class chat_openai():
 
         # send function replies to assistant
         try:
-            stream_tool = self.client.beta.threads.runs.submit_tool_outputs(
-                thread_id=self.assistant_thread.id,
+            stream = self.client.beta.threads.runs.submit_tool_outputs(
+                thread_id=event.data.thread_id,
                 run_id=event.data.id,
                 tool_outputs=tool_outputs,
                 stream=True)
-            for tool_events in stream_tool:
-                if (tool_events.event == "thread.message.delta"):
-                    # print(tool_events.data.delta.content[0].text.value, end=" ")
-                    stream_text = tool_events.data.delta.content[0].text.value
-                    self.send_reply_stream(stream_text)
-                    if (event.event == "thread.run.completed"):
-                        self.send_status("completed")
+
+            for event in stream:
+                # requires_action events handled by function calls
+                if event.event == 'thread.run.requires_action':
+                    self.handle_function_call(event)
+
+                # display reply text in the reply window
+                if (event.event == "thread.message.delta"):
+                    stream_text = event.data.delta.content[0].text.value
+                    self.send_reply(stream_text)
 
         except Exception:
             print("chat: error replying to function call")
             print(tool_outputs)
-            return False
-
-        return True
+            return
 
     # get the current date and time in the format, Saturday, June 24, 2023 6:14:14 PM
     def get_current_datetime(self, arguments):
@@ -764,7 +793,7 @@ class chat_openai():
         if self.status_cb is not None:
             self.status_cb(status)
 
-    def send_reply_stream(self, reply):
+    def send_reply(self, reply):
         if self.reply_cb is not None:
             self.reply_cb(reply)
 
