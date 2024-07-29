@@ -58,6 +58,8 @@ class chat_window():
 
         # add a record button
         self.record_button = wx.Button(self.frame, id=-1, label="Rec", size=(75, 25))
+        self.record_button.Bind(wx.EVT_LEFT_DOWN, self.record_button_pushed)
+        self.record_button.Bind(wx.EVT_LEFT_UP, self.record_button_released)
         self.frame.Bind(wx.EVT_BUTTON, self.record_button_click, self.record_button)
         self.horiz_sizer.Add(self.record_button, proportion=0, flag=wx.ALIGN_TOP | wx.ALL, border=5)
 
@@ -145,6 +147,16 @@ class chat_window():
         # send text to assistant
         self.set_status_text("sending text to assistasnt")
         self.send_text_to_assistant()
+
+    # record button pushed
+    def record_button_pushed(self, event):
+        # run record_button_click_execute in a new thread
+        self.set_status_text("recording button pressed")
+
+    # record button released
+    def record_button_released(self, event):
+        # run record_button_click_execute in a new thread
+        self.set_status_text("recording button released")
 
     # cancel button clicked
     def cancel_button_click(self, event):

@@ -18,9 +18,10 @@ except Exception:
 
 class chat_voice_to_text():
     def __init__(self):
-        # initialise OpenAI connection
+        # initialise variables
         self.client = None
         self.assistant = None
+        self.stop_recording = False
 
     # set the OpenAI API key
     def set_api_key(self, api_key_str):
@@ -56,10 +57,11 @@ class chat_voice_to_text():
         # calculate time recording should stop
         curr_time = time.time()
         time_stop = curr_time + 5
+        self.stop_recording = False
 
         # record until specified time
         frames = []
-        while curr_time < time_stop:
+        while curr_time < time_stop and not self.stop_recording:
             data = stream.read(1024)
             frames.append(data)
             curr_time = time.time()
@@ -77,6 +79,10 @@ class chat_voice_to_text():
         wf.writeframes(b''.join(frames))
         wf.close()
         return "recording.wav"
+
+    # stop recording audio
+    def stop_record_audio(self):
+        self.stop_recording = True
 
     # convert audio to text
     # returns transcribed text on success or None if failed
