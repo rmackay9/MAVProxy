@@ -61,6 +61,9 @@ class chat_voice_to_text():
         time_stop = curr_time + 5
         self.stop_recording = False
 
+        # empty queue
+        self.external_cmd_queue.empty()
+
         # record until specified time
         print("chat: voice-to-text started recording!")
         frames = []
@@ -69,8 +72,10 @@ class chat_voice_to_text():
             frames.append(data)
             curr_time = time.time()
             queue_item = self.external_cmd_queue.get_nowait()
+            print("chat:" + queue_item)
             if queue_item == "stop":
                 print("chat: voice-to-text got stop command!")
+                self.external_cmd_queue.empty()
                 break
 
         # Stop and close the stream
