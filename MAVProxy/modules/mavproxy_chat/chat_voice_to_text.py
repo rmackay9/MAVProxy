@@ -60,6 +60,7 @@ class chat_voice_to_text():
         self.stop_recording = False
 
         # record until specified time
+        print("chat: voice-to-text started recording!")
         frames = []
         while curr_time < time_stop and not self.stop_recording:
             data = stream.read(1024)
@@ -82,6 +83,7 @@ class chat_voice_to_text():
 
     # stop recording audio
     def stop_record_audio(self):
+        print("chat: voice-to-text will stop recording!")
         self.stop_recording = True
 
     # convert audio to text

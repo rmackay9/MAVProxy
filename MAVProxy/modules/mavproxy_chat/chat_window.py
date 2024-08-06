@@ -60,7 +60,6 @@ class chat_window():
         self.record_button = wx.Button(self.frame, id=-1, label="Rec", size=(75, 25))
         self.record_button.Bind(wx.EVT_LEFT_DOWN, self.record_button_pushed)
         self.record_button.Bind(wx.EVT_LEFT_UP, self.record_button_released)
-        self.frame.Bind(wx.EVT_BUTTON, self.record_button_click, self.record_button)
         self.horiz_sizer.Add(self.record_button, proportion=0, flag=wx.ALIGN_TOP | wx.ALL, border=5)
 
         # add an input text box
@@ -122,14 +121,14 @@ class chat_window():
         self.apikey_frame.Hide()
 
     # record button clicked
-    def record_button_click(self, event):
+    def record_button_pushed(self, event):
         # run record_button_click_execute in a new thread
-        th = Thread(target=self.record_button_click_execute, args=(event,))
+        th = Thread(target=self.record_button_pushed_execute, args=(event,))
         th.start()
 
-    # record button clicked
-    def record_button_click_execute(self, event):
-        # record audio
+    # record button pushed
+    def record_button_pushed_execute(self, event):
+        # record audio in a new thread
         self.set_status_text("recording audio")
         rec_filename = self.chat_voice_to_text.record_audio()
         if rec_filename is None:
@@ -148,15 +147,11 @@ class chat_window():
         self.set_status_text("sending text to assistasnt")
         self.send_text_to_assistant()
 
-    # record button pushed
-    def record_button_pushed(self, event):
-        # run record_button_click_execute in a new thread
-        self.set_status_text("recording button pressed")
-
     # record button released
     def record_button_released(self, event):
-        # run record_button_click_execute in a new thread
+        # request voice-to-text to stop recording
         self.set_status_text("recording button released")
+        self.chat_voice_to_text.stop_record_audio()
 
     # cancel button clicked
     def cancel_button_click(self, event):
