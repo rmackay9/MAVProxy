@@ -15,6 +15,7 @@ except Exception:
     print("chat: failed to import pyaudio, wave or openai.  See https://ardupilot.org/mavproxy/docs/modules/chat.html")
     exit()
 
+from MAVProxy.modules.lib import multiproc
 
 class chat_voice_to_text():
     def __init__(self):
@@ -22,6 +23,7 @@ class chat_voice_to_text():
         self.client = None
         self.assistant = None
         self.stop_recording = False
+        self.external_cmd_queue = multiproc.Queue()
 
     # set the OpenAI API key
     def set_api_key(self, api_key_str):
@@ -66,6 +68,10 @@ class chat_voice_to_text():
             data = stream.read(1024)
             frames.append(data)
             curr_time = time.time()
+            queue_item = self.external_cmd_queue.get_nowait()
+            if queue_item == "stop":
+                print("chat: voice-to-text got stop command!")
+                break
 
         # Stop and close the stream
         stream.stop_stream()
@@ -85,6 +91,7 @@ class chat_voice_to_text():
     def stop_record_audio(self):
         print("chat: voice-to-text will stop recording!")
         self.stop_recording = True
+        self.external_cmd_queue.put("stop")
 
     # convert audio to text
     # returns transcribed text on success or None if failed
