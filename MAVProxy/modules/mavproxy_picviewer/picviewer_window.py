@@ -14,6 +14,8 @@ import time, sys
 import piexif
 
 from MAVProxy.modules.lib import mp_util
+from MAVProxy.modules.lib import mp_elevation
+
 if mp_util.has_wxpython:
     from MAVProxy.modules.lib.wx_loader import wx
     from MAVProxy.modules.lib.mp_menu import MPMenuTop
@@ -52,13 +54,18 @@ class picviewer_window:
         self.im.set_image(cv2.imread(self.filename))
         self.set_title(self.filename)
 
+        # load elevation data
+        self.elevation_model = mp_elevation.ElevationModel()
+
         # load exif data
-        exif_dic = piexif.load(self.filename)
-        print("EXIF data:")
-        for exif_key, exif_value in exif_dic.items():
-            #print(exif_key, exif_value)
-            print(exif_key)
-        print("-----------------")
+        lat, lon, alt, terr_alt = self.exif_location(self.filename)
+        #exif_dic = piexif.load(self.filename)
+        #print("EXIF data:")
+        #for exif_key, exif_value in exif_dic.items():
+        #    #print(exif_key, exif_value)
+        #    print(exif_key)
+        #print("-----------------")
+        print("Image Lat:%f lon:%f alt:%f talt:%f" % (lat, lon, alt, terr_alt))
 
         # create menu
         self.menu = None
@@ -82,20 +89,23 @@ class picviewer_window:
         self.thread.daemon = False
         self.thread.start()
 
+    # main loop
     def picviewer_window_loop(self):
-        '''main thread'''
+        """main thread"""
         while True:
             if self.im is None:
                 break
             time.sleep(0.25)
             self.check_events()
 
+    # set window title
     def set_title(self, title):
         """set image title"""
         if self.im is None:
             return
         self.im.set_title(title)
 
+    # process window events
     def check_events(self):
         """check for image events"""
         if self.im is None:
@@ -130,3 +140,49 @@ class picviewer_window:
     # display dialog to open a file
     def cmd_openfile(self):
         print("I will open a file")
+
+    # get location (e.g lat, lon, alt, terr_alt) from image's exif tags
+    def exif_location(self, filename):
+        """get latitude, longitude, altitude and terrain_alt from exif tags"""
+        import piexif
+        global _last_position
+        
+        exif_dict = piexif.load(filename)
+
+        if piexif.GPSIFD.GPSLatitudeRef in exif_dict["GPS"]:
+            lat_ns = exif_dict["GPS"][piexif.GPSIFD.GPSLatitudeRef]
+            lat = self.dms_to_decimal(exif_dict["GPS"][piexif.GPSIFD.GPSLatitude][0],
+                                      exif_dict["GPS"][piexif.GPSIFD.GPSLatitude][1],
+                                      exif_dict["GPS"][piexif.GPSIFD.GPSLatitude][2],
+                                      lat_ns)
+            lon_ew = exif_dict["GPS"][piexif.GPSIFD.GPSLongitudeRef]
+            lon = self.dms_to_decimal(exif_dict["GPS"][piexif.GPSIFD.GPSLongitude][0],
+                                      exif_dict["GPS"][piexif.GPSIFD.GPSLongitude][1],
+                                      exif_dict["GPS"][piexif.GPSIFD.GPSLongitude][2],
+                                      lon_ew)
+            alt = float(exif_dict["GPS"][piexif.GPSIFD.GPSAltitude][0])/float(exif_dict["GPS"][piexif.GPSIFD.GPSAltitude][1])
+            terr_alt = self.elevation_model.GetElevation(lat, lon)
+            if terr_alt is None:
+                print("WARNING: failed terrain lookup for %f %f" % (lat, lon))
+                terr_alt = 0
+        else:
+            lat = 0
+            lon = 0
+            alt = 0
+            terr_alt = 0
+
+        return lat, lon, alt, terr_alt
+
+    def dms_to_decimal(self, degrees, minutes, seconds, sign=b' '):
+        """Convert degrees, minutes, seconds into decimal degrees.
+
+        >>> dms_to_decimal((10, 1), (10, 1), (10, 1))
+        10.169444444444444
+        >>> dms_to_decimal((8, 1), (9, 1), (10, 1), 'S')
+        -8.152777777777779
+        """
+        return (-1 if sign in b'SWsw' else 1) * (
+            float(degrees[0])/float(degrees[1])        +
+            float(minutes[0])/float(minutes[1]) / 60.0   +
+            float(seconds[0])/float(seconds[1]) / 3600.0
+        )
