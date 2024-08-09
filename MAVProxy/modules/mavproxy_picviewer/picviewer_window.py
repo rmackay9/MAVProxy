@@ -25,6 +25,7 @@ if mp_util.has_wxpython:
     from MAVProxy.modules.lib.mp_image import MPImageTrackPos
     from MAVProxy.modules.lib.mp_image import MPImageFrameCounter
     from MAVProxy.modules.mavproxy_map import mp_slipmap
+    from MAVProxy.modules.lib import camera_projection
     from MAVProxy.modules.lib.mp_menu import MPMenuCallFileDialog
     from MAVProxy.modules.lib.mp_menu import MPMenuCallDirDialog
 
@@ -58,14 +59,38 @@ class picviewer_window:
         self.elevation_model = mp_elevation.ElevationModel()
 
         # load exif data
-        lat, lon, alt, terr_alt = self.exif_location(self.filename)
+        lat, lon, alt_amsl, terr_alt = self.exif_location(self.filename)
         #exif_dic = piexif.load(self.filename)
         #print("EXIF data:")
         #for exif_key, exif_value in exif_dic.items():
         #    #print(exif_key, exif_value)
         #    print(exif_key)
         #print("-----------------")
-        print("Image Lat:%f lon:%f alt:%f talt:%f" % (lat, lon, alt, terr_alt))
+        print("Image Lat:%f lon:%f alt:%f talt:%f" % (lat, lon, alt_amsl, terr_alt))
+
+        sm = mp_slipmap.MPSlipMap(lat=lat, lon=lon, elevation='SRTM3')
+        cam1 = camera_projection.CameraParams(xresolution=640, yresolution=480, FOV=24.2)
+        cam1_projection = camera_projection.CameraProjection(cam1, 
+                                                             mpstate.module('terrain').ElevationModel,
+                                                             #elevation_model=self.elevation_model,
+                                                             terrain_source="SRTM3")
+        roll = 0
+        pitch = -90
+        yaw = 0
+        projection1 = cam1_projection.get_projection(lat, lon, alt_amsl, roll, pitch, yaw)
+        if projection1 is not None:
+            print("projection1: %s" % projection1)
+            sm.add_object(mp_slipmap.SlipPolygon('projection1', projection1, layer=1, linewidth=2, colour=(0,255,0)))
+        else:
+            print("projection1 is None")
+        #while sm.is_alive():
+        #    while not sm.event_queue_empty():
+        #        obj = sm.get_event()
+            #    if isinstance(obj, mp_slipmap.SlipMouseEvent):
+            #        lat = obj.latlon[0]
+            #        lon = obj.latlon[1]
+            #        alt_amsl = args.alt_agl + self.elevation_model.GetElevation(lat, lon, timeout=10)
+        #    time.sleep(0.1)
 
         # create menu
         self.menu = None
