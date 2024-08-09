@@ -67,7 +67,7 @@ class picviewer(mp_module.MPModule):
                 console.add_menu(self.menu)
 
         # reduce startup time during dev by opening a file
-        #self.cmd_openfile("/home/rmackay9/GitHub/r9-MAVProxy/XACT0001.JPG")
+        self.cmd_openfile("/home/rmackay9/GitHub/r9-MAVProxy/XACT0001.JPG")
 
     # show help on command line options
     def usage(self):
