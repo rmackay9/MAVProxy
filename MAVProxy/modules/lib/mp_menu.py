@@ -322,14 +322,23 @@ class MPMenuCallFileDialog(object):
             'open': wx.FD_OPEN,
             'save': wx.FD_SAVE,
             'overwrite_prompt': wx.FD_OVERWRITE_PROMPT,
+            'multiple': wx.FD_MULTIPLE,
         }
         flagsMapped = list(map(lambda x: flag_map[x], self.flags))
+        print("flags: %s" % flagsMapped)
 
         #need to OR together the elements of the flagsMapped tuple
         if len(flagsMapped) == 1:
             dlg = wx.FileDialog(None, self.title, '', "", self.wildcard, flagsMapped[0])
         else:
-            dlg = wx.FileDialog(None, self.title, '', "", self.wildcard, flagsMapped[0]|flagsMapped[1])
+            dlg = wx.FileDialog(None, self.title, '', "", self.wildcard, flagsMapped[0]|flagsMapped[1]|wx.FD_MULTIPLE)
+        if dlg.ShowModal() != wx.ID_OK:
+            print("FileDialog: No file selected")
+            return None
+        print("FileDialog: %s" % ("\"" + dlg.GetPath() + "\""))
+        return "\"" + dlg.GetPath() + "\""
+
+
 class MPMenuCallDirDialog(object):
     '''used to create a file folder dialog callback'''
     def __init__(self, flags=None, title='Directory'):
