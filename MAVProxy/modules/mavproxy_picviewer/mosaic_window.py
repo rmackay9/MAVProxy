@@ -16,7 +16,6 @@ import piexif
 import os
 
 from MAVProxy.modules.lib import mp_util
-from MAVProxy.modules.lib import mp_elevation
 
 if mp_util.has_wxpython:
     from MAVProxy.modules.lib.wx_loader import wx
@@ -24,13 +23,7 @@ if mp_util.has_wxpython:
     from MAVProxy.modules.lib.mp_menu import MPMenuItem
     from MAVProxy.modules.lib.mp_menu import MPMenuSubMenu
     from MAVProxy.modules.lib.mp_image import MPImage
-    from MAVProxy.modules.lib.mp_image import MPImageTrackPos
-    from MAVProxy.modules.lib.mp_image import MPImageFrameCounter
-    from MAVProxy.modules.mavproxy_map import mp_slipmap
-    from MAVProxy.modules.lib import camera_projection
-    from MAVProxy.modules.lib.mp_menu import MPMenuCallFileDialog
     from MAVProxy.modules.lib.mp_menu import MPMenuCallDirDialog
-    from MAVProxy.modules.mavproxy_picviewer import cuav_util, cuav_region, cuav_mosaic
 
 import numpy as np
 

@@ -12,30 +12,15 @@ from MAVProxy.modules.lib import mp_settings
 from MAVProxy.modules.lib.mp_settings import MPSetting
 from MAVProxy.modules.lib import mp_util
 from MAVProxy.modules.mavproxy_picviewer import picviewer_window
-from MAVProxy.modules.lib import camera_projection
-from pymavlink import mavutil
-from pymavlink import DFReader
-from pymavlink.rotmat import Matrix3
-from pymavlink.rotmat import Vector3
-import math
-from math import radians, degrees
-from threading import Thread
-import traceback
 from pathlib import Path
 
-import socket, time, os, struct
+import os
 
 if mp_util.has_wxpython:
-    from MAVProxy.modules.lib.mp_menu import MPMenuCallTextDialog
     from MAVProxy.modules.lib.mp_menu import MPMenuCallFileDialog
     from MAVProxy.modules.lib.mp_menu import MPMenuCallDirDialog
     from MAVProxy.modules.lib.mp_menu import MPMenuItem
     from MAVProxy.modules.lib.mp_menu import MPMenuSubMenu
-    from MAVProxy.modules.lib.mp_image import MPImage
-    from MAVProxy.modules.mavproxy_map import mp_slipmap
-
-from MAVProxy.modules.mavproxy_SIYI.camera_view import CameraView
-
 class picviewer(mp_module.MPModule):
 
     def __init__(self, mpstate):
