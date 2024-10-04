@@ -8,33 +8,31 @@ Mosaic window showing all images
 AP_FLAKE8_CLEAN
 '''
 
-import os, sys, time
+import os
+import sys
+import time
 from argparse import ArgumentParser
-from queue import Queue
 from threading import Thread
 from math import ceil
 import wx.lib.scrolledpanel as scrolled
 from MAVProxy.modules.lib import multiproc
 from MAVProxy.modules.lib import mp_util
-from mavpicviewer_shared import mavpicviewer_loc, get_file_list, SetFilenumber, SetFOV, Close, SetPOI, ClearPOI
+import mavpicviewer_shared as mpv
 from mavpicviewer_settings import mavpicviewer_settings
 import mavpicviewer_image
 if mp_util.has_wxpython:
     from MAVProxy.modules.lib.wx_loader import wx
-    from MAVProxy.modules.mavproxy_map import mp_slipmap
-from threading import Thread
 
 prefix_str = "mavpicviewer: "
+
 
 class mavpicviewer_mosaic:
     """displays a mosaic of images"""
 
-    def __init__(self, folderpath, comm_pipe = None):
+    def __init__(self, folderpath, comm_pipe=None):
 
         # keep reference to callbacks
         self.image_comm_pipe = comm_pipe
-        if self.image_comm_pipe is not None:
-            print("mavpicviewer_mosaic: using existing comm_pipe")
 
         # init current filenumber and filelist
         self.filenumber = 0
@@ -79,7 +77,7 @@ class mavpicviewer_mosaic:
         # add bindings for arrow keys
         self.frame.Bind(wx.EVT_CHAR_HOOK, self.on_key)
 
-        # add binding for close window
+        # add binding for Close window
         self.frame.Bind(wx.EVT_CLOSE, self.menu_quit)
 
         # add a timer for redrawing
@@ -158,7 +156,7 @@ class mavpicviewer_mosaic:
     # main loop
     def mavpicviewer_mosaic_loop(self):
         """main thread"""
-        # this does not return until the window is closed
+        # this does not return until the window is Closed
         self.app.MainLoop()
 
     # handle timer event.  used to consume messages from the comm pipe
@@ -175,13 +173,13 @@ class mavpicviewer_mosaic:
     # handle an object received on the communication pipe
     def handle_comm_object(self, obj):
         """process an object received on the communication pipe"""
-        if isinstance(obj, SetFilenumber):
+        if isinstance(obj, mpv.SetFilenumber):
             self.set_filenunmber(obj.filenumber, False)
-        elif isinstance(obj, Close):
+        elif isinstance(obj, mpv.Close):
             self.menu_quit(None)
-        elif isinstance(obj, SetPOI):
+        elif isinstance(obj, mpv.SetPOI):
             self.set_image_poi(obj.filenumber, obj.poi)
-        elif isinstance(obj, ClearPOI):
+        elif isinstance(obj, mpv.ClearPOI):
             self.clear_image_poi(obj.filenumber)
 
     # send a communication object to the image viewer
@@ -209,9 +207,9 @@ class mavpicviewer_mosaic:
         if self.filenumber in self.poi_dict:
             poi = self.poi_dict[self.filenumber]
             if poi is not None:
-                loc_average = mavpicviewer_loc((poi.loc1.lat + poi.loc2.lat) / 2,
-                                               (poi.loc1.lon + poi.loc2.lon) / 2,
-                                               (poi.loc1.alt + poi.loc2.alt) / 2)
+                loc_average = mpv.Loc((poi.loc1.lat + poi.loc2.lat) / 2,
+                                      (poi.loc1.lon + poi.loc2.lon) / 2,
+                                      (poi.loc1.alt + poi.loc2.alt) / 2)
                 status_text = f"POI: {loc_average.lat:.7f} {loc_average.lon:.7f} {loc_average.alt:.0f}"
         self.text_status.SetValue(status_text)
 
@@ -225,7 +223,7 @@ class mavpicviewer_mosaic:
 
     # update filelist dictionary which holds the filepaths for all images
     def update_file_list(self, folderpath):
-        filelist = get_file_list(folderpath, ['jpg', 'jpeg'])
+        filelist = mpv.get_file_list(folderpath, ['jpg', 'jpeg'])
         if filelist is None or not filelist:
             print(prefix_str + "no files found")
             return
@@ -251,10 +249,10 @@ class mavpicviewer_mosaic:
     # process menu quit event
     def menu_quit(self, event):
         """process menu quit event"""
-        # send close command to image viewer
-        self.send_comm_object(Close())
+        # send Close command to image viewer
+        self.send_comm_object(mpv.Close())
 
-        # close frame and exit main loop
+        # Close frame and exit main loop
         wx.CallAfter(self.frame.Close)
         self.app.ExitMainLoop()
 
@@ -321,8 +319,7 @@ class mavpicviewer_mosaic:
         self.update_status_text()
 
         # notify image viewer
-        self.send_comm_object(SetFilenumber(self.filenumber))
-        
+        self.send_comm_object(mpv.SetFilenumber(self.filenumber))
 
     # add POI to image
     def add_poi(self, filenumber):
@@ -426,7 +423,8 @@ class mavpicviewer_mosaic:
     def settings_changed_cb(self, name, value):
         """handle settings changes callback"""
         if name == "FOV":
-            self.send_comm_object(SetFOV(float(value)))
+            self.send_comm_object(mpv.SetFOV(float(value)))
+
 
 # main function
 if __name__ == "__main__":
@@ -443,7 +441,7 @@ if __name__ == "__main__":
     mosaic_to_image_comm, image_to_mosaic_comm = multiproc.Pipe()
 
     # create image viewer
-    filelist = get_file_list(args.filepath, ['jpg', 'jpeg'])
+    filelist = mpv.get_file_list(args.filepath, ['jpg', 'jpeg'])
     mavpicviewer_image.mavpicviewer_image(filelist, image_to_mosaic_comm)
 
     # create mosaic

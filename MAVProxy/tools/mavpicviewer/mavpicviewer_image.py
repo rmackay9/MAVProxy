@@ -9,13 +9,11 @@ AP_FLAKE8_CLEAN
 '''
 
 from threading import Thread
-from queue import Queue
 import cv2
 import time
 import os
 import piexif
-from mavpicviewer_shared import mavpicviewer_loc, mavpicviewer_pos, mavpicviewer_poi, SetFilenumber, SetFOV, Close, SetPOI, ClearPOI
-
+import mavpicviewer_shared as mpv
 from MAVProxy.modules.lib import mp_util
 from MAVProxy.modules.lib import mp_elevation
 
@@ -27,13 +25,12 @@ if mp_util.has_wxpython:
     from MAVProxy.modules.lib.mp_image import MPImage
     from MAVProxy.modules.mavproxy_map import mp_slipmap
     from MAVProxy.modules.lib import camera_projection
-    from MAVProxy.modules.lib.mp_menu import MPMenuCallDirDialog
 
 
 class mavpicviewer_image:
     """handle camera view image"""
 
-    def __init__(self, filelist, comm_pipe = None):
+    def __init__(self, filelist, comm_pipe=None):
 
         # determine if filelist is a string or a list of strings
         self.filenumber = 0
@@ -108,11 +105,11 @@ class mavpicviewer_image:
     # handle an object received on the communication pipe
     def handle_comm_object(self, obj):
         """process an object received on the communication pipe"""
-        if isinstance(obj, SetFilenumber):
+        if isinstance(obj, mpv.SetFilenumber):
             self.set_filenumber(obj.filenumber, False)
-        elif isinstance(obj, SetFOV):
+        elif isinstance(obj, mpv.SetFOV):
             self.set_fov(obj.fov)
-        elif isinstance(obj, Close):
+        elif isinstance(obj, mpv.Close):
             self.exit_requested = True
             self.im.terminate()
             self.sm.close()
@@ -179,7 +176,7 @@ class mavpicviewer_image:
     def poi_capture_start(self, X, Y):
         """handle user request to start capturing box around part of image"""
         if self.poi_start_pos is None:
-            self.poi_start_pos = mavpicviewer_pos(X, Y)
+            self.poi_start_pos = mpv.Pos(X, Y)
 
     # complete capturing box around part of image
     def poi_capture_done(self, X, Y):
@@ -196,11 +193,11 @@ class mavpicviewer_image:
                 print("picviewer: POI capture failed")
                 return
             # add POI object to dictionary
-            poi = mavpicviewer_poi(self.poi_start_pos, mavpicviewer_pos(X, Y),
-                                mavpicviewer_loc(lat1, lon1, alt1),
-                                mavpicviewer_loc(lat2, lon2, alt2))
+            poi = mpv.POI(self.poi_start_pos, mpv.Pos(X, Y),
+                          mpv.Loc(lat1, lon1, alt1),
+                          mpv.Loc(lat2, lon2, alt2))
             self.poi_dict[self.filenumber] = poi
-            self.send_comm_object(SetPOI(self.filenumber, poi))
+            self.send_comm_object(mpv.SetPOI(self.filenumber, poi))
             self.poi_start_pos = None
             # update image
             self.update_image()
@@ -218,7 +215,7 @@ class mavpicviewer_image:
             self.poi_dict.pop(self.filenumber)
             self.update_image()
             self.remove_rectangle_from_map(self.filename)
-            self.send_comm_object(ClearPOI(self.filenumber))
+            self.send_comm_object(mpv.ClearPOI(self.filenumber))
 
     # update current image to next image
     def cmd_nextimage(self):
@@ -240,7 +237,7 @@ class mavpicviewer_image:
         self.update_image()
         self.update_map()
         if notify_mosaic:
-            self.send_comm_object(SetFilenumber(self.filenumber))
+            self.send_comm_object(mpv.SetFilenumber(self.filenumber))
 
     # update the displayed image
     # should be called if filenumber is changed
@@ -251,7 +248,6 @@ class mavpicviewer_image:
 
         # create image viewer if required
         if self.im is None:
-            print("picviewer: creating image viewer")
             self.im = MPImage(title=base_filename,
                               mouse_events=True,
                               mouse_movement_events=True,
